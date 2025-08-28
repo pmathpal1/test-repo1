@@ -3,9 +3,9 @@ pipeline {
 
     parameters {
         string(name: 'LOCATION', defaultValue: 'eastus', description: 'Azure region')
-        string(name: 'RG_NAME', defaultValue: 'test-rg1', description: 'Azure Resource Group')
-        string(name: 'STORAGE_ACCOUNT_NAME', defaultValue: 'pankajmathpal99001122', description: 'Storage Account')
-        string(name: 'CONTAINER_NAME', defaultValue: 'mycon1212', description: 'Storage Container')
+        string(name: 'RG_NAME', defaultValue: 'test-rg1', description: 'Azure Resource Group for backend')
+        string(name: 'STORAGE_ACCOUNT_NAME', defaultValue: 'pankajmathpal99001122', description: 'Storage Account for backend')
+        string(name: 'CONTAINER_NAME', defaultValue: 'mycon1212', description: 'Container for storing state file')
         booleanParam(name: 'DESTROY', defaultValue: false, description: 'Destroy infrastructure')
     }
 
@@ -17,9 +17,16 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'git@github.com:pmathpal1/code-new.git'
+                checkout scm
+            }
+        }
+
+        stage('Debug Bootstrap Files') {
+            steps {
+                echo "Listing terraform/bootstrap directory contents:"
+                sh 'ls -la terraform/bootstrap'
             }
         }
 
@@ -34,14 +41,14 @@ pipeline {
                     ]) {
                         script {
                             docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
+                                sh 'terraform init -backend=false'
                                 sh """
-                                terraform init -backend=false
-                                terraform apply \
-                                    -var='location=${params.LOCATION}' \
-                                    -var='rg_name=${params.RG_NAME}' \
-                                    -var='storage_account_name=${params.STORAGE_ACCOUNT_NAME}' \
-                                    -var='container_name=${params.CONTAINER_NAME}' \
-                                    -auto-approve
+                                    terraform apply \
+                                      -var="location=${params.LOCATION}" \
+                                      -var="rg_name=${params.RG_NAME}" \
+                                      -var="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
+                                      -var="container_name=${params.CONTAINER_NAME}" \
+                                      -auto-approve
                                 """
                             }
                         }
@@ -50,7 +57,7 @@ pipeline {
             }
         }
 
-        stage('Terraform Init with Remote Backend') {
+        stage('Init with Remote Backend') {
             steps {
                 dir('terraform/main') {
                     withEnv([
@@ -62,12 +69,12 @@ pipeline {
                         script {
                             docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
                                 sh """
-                                terraform init \
-                                  -backend-config="resource_group_name=${params.RG_NAME}" \
-                                  -backend-config="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
-                                  -backend-config="container_name=${params.CONTAINER_NAME}" \
-                                  -backend-config="key=terraform.tfstate" \
-                                  -force-copy
+                                    terraform init \
+                                        -backend-config="resource_group_name=${params.RG_NAME}" \
+                                        -backend-config="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
+                                        -backend-config="container_name=${params.CONTAINER_NAME}" \
+                                        -backend-config="key=terraform.tfstate" \
+                                        -force-copy
                                 """
                             }
                         }
@@ -88,11 +95,11 @@ pipeline {
                         script {
                             docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
                                 sh """
-                                terraform plan \
-                                  -var='location=${params.LOCATION}' \
-                                  -var='rg_name=${params.RG_NAME}' \
-                                  -var='storage_account_name=${params.STORAGE_ACCOUNT_NAME}' \
-                                  -var='container_name=${params.CONTAINER_NAME}'
+                                    terraform plan \
+                                      -var="location=${params.LOCATION}" \
+                                      -var="rg_name=${params.RG_NAME}" \
+                                      -var="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
+                                      -var="container_name=${params.CONTAINER_NAME}"
                                 """
                             }
                         }
@@ -113,12 +120,12 @@ pipeline {
                         script {
                             docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
                                 sh """
-                                terraform apply \
-                                  -var='location=${params.LOCATION}' \
-                                  -var='rg_name=${params.RG_NAME}' \
-                                  -var='storage_account_name=${params.STORAGE_ACCOUNT_NAME}' \
-                                  -var='container_name=${params.CONTAINER_NAME}' \
-                                  -auto-approve
+                                    terraform apply \
+                                      -var="location=${params.LOCATION}" \
+                                      -var="rg_name=${params.RG_NAME}" \
+                                      -var="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
+                                      -var="container_name=${params.CONTAINER_NAME}" \
+                                      -auto-approve
                                 """
                             }
                         }
@@ -151,12 +158,12 @@ pipeline {
                         script {
                             docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
                                 sh """
-                                terraform destroy \
-                                  -var='location=${params.LOCATION}' \
-                                  -var='rg_name=${params.RG_NAME}' \
-                                  -var='storage_account_name=${params.STORAGE_ACCOUNT_NAME}' \
-                                  -var='container_name=${params.CONTAINER_NAME}' \
-                                  -auto-approve
+                                    terraform destroy \
+                                      -var="location=${params.LOCATION}" \
+                                      -var="rg_name=${params.RG_NAME}" \
+                                      -var="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
+                                      -var="container_name=${params.CONTAINER_NAME}" \
+                                      -auto-approve
                                 """
                             }
                         }
@@ -166,4 +173,3 @@ pipeline {
         }
     }
 }
-
