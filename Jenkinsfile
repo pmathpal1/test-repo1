@@ -1,14 +1,6 @@
 pipeline {
     agent any
 
-    parameters {
-        string(name: 'LOCATION', defaultValue: 'eastus', description: 'Azure region')
-        string(name: 'RG_NAME', defaultValue: 'test-rg1', description: 'Azure Resource Group for backend')
-        string(name: 'STORAGE_ACCOUNT_NAME', defaultValue: 'pankajmathpal99001122', description: 'Storage Account for backend')
-        string(name: 'CONTAINER_NAME', defaultValue: 'mycon1212', description: 'Container for storing state file')
-        booleanParam(name: 'DESTROY', defaultValue: false, description: 'Destroy infrastructure')
-    }
-
     environment {
         ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
         ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
@@ -16,48 +8,15 @@ pipeline {
         ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
     }
 
+    parameters {
+        string(name: 'LOCATION', defaultValue: 'eastus', description: 'Azure region')
+        string(name: 'RG_NAME', defaultValue: 'test-rg1', description: 'Azure Resource Group for backend')
+        string(name: 'STORAGE_ACCOUNT_NAME', defaultValue: 'pankajmathpal99001122', description: 'Storage Account for backend')
+        string(name: 'CONTAINER_NAME', defaultValue: 'mycon1212', description: 'Container for storing state file')
+    }
+
     stages {
-        stage('Checkout Code') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Debug Bootstrap Files') {
-            steps {
-                echo "Listing terraform/bootstrap directory contents:"
-                sh 'ls -la terraform/bootstrap'
-            }
-        }
-
-        stage('Bootstrap Backend Infra') {
-            steps {
-                dir('terraform/bootstrap') {
-                    withEnv([
-                        "ARM_CLIENT_ID=${env.ARM_CLIENT_ID}",
-                        "ARM_CLIENT_SECRET=${env.ARM_CLIENT_SECRET}",
-                        "ARM_SUBSCRIPTION_ID=${env.ARM_SUBSCRIPTION_ID}",
-                        "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
-                    ]) {
-                        script {
-                            docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                                sh 'terraform init -backend=false'
-                                sh """
-                                    terraform apply \
-                                      -var="location=${params.LOCATION}" \
-                                      -var="rg_name=${params.RG_NAME}" \
-                                      -var="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
-                                      -var="container_name=${params.CONTAINER_NAME}" \
-                                      -auto-approve
-                                """
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Init with Remote Backend') {
+        stage('Terraform Init with Remote Backend') {
             steps {
                 dir('terraform/main') {
                     withEnv([
@@ -83,26 +42,22 @@ pipeline {
             }
         }
 
+        stage('Terraform Format & Validate') {
+            steps {
+                dir('terraform/main') {
+                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
+                        sh 'terraform fmt -check'
+                        sh 'terraform validate'
+                    }
+                }
+            }
+        }
+
         stage('Terraform Plan') {
             steps {
                 dir('terraform/main') {
-                    withEnv([
-                        "ARM_CLIENT_ID=${env.ARM_CLIENT_ID}",
-                        "ARM_CLIENT_SECRET=${env.ARM_CLIENT_SECRET}",
-                        "ARM_SUBSCRIPTION_ID=${env.ARM_SUBSCRIPTION_ID}",
-                        "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
-                    ]) {
-                        script {
-                            docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                                sh """
-                                    terraform plan \
-                                      -var="location=${params.LOCATION}" \
-                                      -var="rg_name=${params.RG_NAME}" \
-                                      -var="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
-                                      -var="container_name=${params.CONTAINER_NAME}"
-                                """
-                            }
-                        }
+                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
+                        sh 'terraform plan -out=tfplan'
                     }
                 }
             }
@@ -111,65 +66,20 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform/main') {
-                    withEnv([
-                        "ARM_CLIENT_ID=${env.ARM_CLIENT_ID}",
-                        "ARM_CLIENT_SECRET=${env.ARM_CLIENT_SECRET}",
-                        "ARM_SUBSCRIPTION_ID=${env.ARM_SUBSCRIPTION_ID}",
-                        "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
-                    ]) {
-                        script {
-                            docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                                sh """
-                                    terraform apply \
-                                      -var="location=${params.LOCATION}" \
-                                      -var="rg_name=${params.RG_NAME}" \
-                                      -var="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
-                                      -var="container_name=${params.CONTAINER_NAME}" \
-                                      -auto-approve
-                                """
-                            }
-                        }
+                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
+                        sh 'terraform apply -auto-approve tfplan'
                     }
                 }
             }
         }
+    }
 
-        stage('Confirm Destroy') {
-            when {
-                expression { params.DESTROY == true }
-            }
-            steps {
-                input message: 'Are you sure you want to destroy the infrastructure?', ok: 'Destroy'
-            }
+    post {
+        failure {
+            echo 'Terraform pipeline failed!'
         }
-
-        stage('Terraform Destroy') {
-            when {
-                expression { params.DESTROY == true }
-            }
-            steps {
-                dir('terraform/main') {
-                    withEnv([
-                        "ARM_CLIENT_ID=${env.ARM_CLIENT_ID}",
-                        "ARM_CLIENT_SECRET=${env.ARM_CLIENT_SECRET}",
-                        "ARM_SUBSCRIPTION_ID=${env.ARM_SUBSCRIPTION_ID}",
-                        "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
-                    ]) {
-                        script {
-                            docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                                sh """
-                                    terraform destroy \
-                                      -var="location=${params.LOCATION}" \
-                                      -var="rg_name=${params.RG_NAME}" \
-                                      -var="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
-                                      -var="container_name=${params.CONTAINER_NAME}" \
-                                      -auto-approve
-                                """
-                            }
-                        }
-                    }
-                }
-            }
+        success {
+            echo 'Terraform pipeline completed successfully!'
         }
     }
 }
