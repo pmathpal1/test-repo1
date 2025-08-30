@@ -2,14 +2,10 @@ pipeline {
     agent any
 
     environment {
-        // Azure credentials (make sure these are set in Jenkins)
         ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
         ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
         ARM_SUBSCRIPTION_ID = credentials('AZURE_SUBSCRIPTION_ID')
         ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
-
-        // GitHub credentials (make sure these are set in Jenkins)
-        GITHUB_CREDENTIALS = credentials('GITHUB_CREDENTIALS')  // GitHub Token for Authentication
     }
 
     parameters {
@@ -20,11 +16,11 @@ pipeline {
     }
 
     stages {
-        stage('Clone GitHub Repository') {
+        stage('Checkout Code from GitHub') {
             steps {
                 script {
-                    // Clone the GitHub repository using the credentials you added in Jenkins
-                    git credentialsId: 'GITHUB_CREDENTIALS', url: 'https://github.com/pmathpal1/test-repo1.git'
+                    // Checkout code from GitHub using SSH
+                    git credentialsId: 'github-ssh-credential', url: 'git@github.com:pmathpal1/test-repo1.git', branch: 'main'
                 }
             }
         }
@@ -39,7 +35,6 @@ pipeline {
                         "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
                     ]) {
                         script {
-                            // Running Terraform init in a Docker container
                             docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
                                 sh """
                                     terraform init \
@@ -59,12 +54,9 @@ pipeline {
         stage('Terraform Format & Validate') {
             steps {
                 dir('terraform/main') {
-                    script {
-                        // Running Terraform fmt and validate inside Docker container
-                        docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                            sh 'terraform fmt -check'
-                            sh 'terraform validate'
-                        }
+                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
+                        sh 'terraform fmt -check'
+                        sh 'terraform validate'
                     }
                 }
             }
@@ -73,11 +65,8 @@ pipeline {
         stage('Terraform Plan') {
             steps {
                 dir('terraform/main') {
-                    script {
-                        // Running Terraform plan inside Docker container
-                        docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                            sh 'terraform plan -out=tfplan'
-                        }
+                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
+                        sh 'terraform plan -out=tfplan'
                     }
                 }
             }
@@ -86,11 +75,8 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform/main') {
-                    script {
-                        // Running Terraform apply inside Docker container
-                        docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                            sh 'terraform apply -auto-approve tfplan'
-                        }
+                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
+                        sh 'terraform apply -auto-approve tfplan'
                     }
                 }
             }
