@@ -2,10 +2,14 @@ pipeline {
     agent any
 
     environment {
+        // Azure credentials (make sure these are set in Jenkins)
         ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
         ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
         ARM_SUBSCRIPTION_ID = credentials('AZURE_SUBSCRIPTION_ID')
         ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
+
+        // GitHub credentials (make sure these are set in Jenkins)
+        GITHUB_CREDENTIALS = credentials('GITHUB_CREDENTIALS')  // GitHub Token for Authentication
     }
 
     parameters {
@@ -16,6 +20,15 @@ pipeline {
     }
 
     stages {
+        stage('Clone GitHub Repository') {
+            steps {
+                script {
+                    // Clone the GitHub repository using the credentials you added in Jenkins
+                    git credentialsId: 'GITHUB_CREDENTIALS', url: 'https://github.com/pmathpal1/test-repo1.git'
+                }
+            }
+        }
+
         stage('Terraform Init with Remote Backend') {
             steps {
                 dir('terraform/main') {
