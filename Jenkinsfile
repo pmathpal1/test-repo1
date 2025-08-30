@@ -35,7 +35,8 @@ pipeline {
                         "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
                     ]) {
                         script {
-                            docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
+                            // Using Docker to run Terraform commands
+                            docker.image('hashicorp/terraform:latest').inside {
                                 sh """
                                     terraform init \
                                         -backend-config="resource_group_name=${params.RG_NAME}" \
@@ -54,9 +55,11 @@ pipeline {
         stage('Terraform Format & Validate') {
             steps {
                 dir('terraform/main') {
-                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                        sh 'terraform fmt -check'
-                        sh 'terraform validate'
+                    script {
+                        docker.image('hashicorp/terraform:latest').inside {
+                            sh 'terraform fmt -check'
+                            sh 'terraform validate'
+                        }
                     }
                 }
             }
@@ -65,8 +68,10 @@ pipeline {
         stage('Terraform Plan') {
             steps {
                 dir('terraform/main') {
-                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                        sh 'terraform plan -out=tfplan'
+                    script {
+                        docker.image('hashicorp/terraform:latest').inside {
+                            sh 'terraform plan -out=tfplan'
+                        }
                     }
                 }
             }
@@ -75,8 +80,10 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform/main') {
-                    docker.image('hashicorp/terraform:latest').inside('--entrypoint=') {
-                        sh 'terraform apply -auto-approve tfplan'
+                    script {
+                        docker.image('hashicorp/terraform:latest').inside {
+                            sh 'terraform apply -auto-approve tfplan'
+                        }
                     }
                 }
             }
