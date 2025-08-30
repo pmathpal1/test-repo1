@@ -19,7 +19,14 @@ pipeline {
         stage('Checkout Code from GitHub') {
             steps {
                 script {
-                    // Checkout code from GitHub using SSH
+                    // Add GitHub SSH key to known_hosts inside the Jenkins environment
+                    sh '''
+                        mkdir -p ~/.ssh
+                        ssh-keyscan github.com >> ~/.ssh/known_hosts
+                        chmod 644 ~/.ssh/known_hosts
+                    '''
+
+                    // Checkout code from GitHub using SSH credentials
                     git credentialsId: 'github-ssh-credential', url: 'git@github.com:pmathpal1/test-repo1.git', branch: 'main'
                 }
             }
@@ -35,7 +42,6 @@ pipeline {
                         "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
                     ]) {
                         script {
-                            // Using Docker to run Terraform commands
                             docker.image('hashicorp/terraform:latest').inside {
                                 sh """
                                     terraform init \
@@ -99,5 +105,3 @@ pipeline {
         }
     }
 }
-
-/////
