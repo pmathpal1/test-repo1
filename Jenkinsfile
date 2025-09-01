@@ -9,33 +9,27 @@ pipeline {
     }
 
     parameters {
-        string(name: 'LOCATION', defaultValue: 'eastus', description: 'Azure region')
-        string(name: 'RG_NAME', defaultValue: 'test-rg1', description: 'Azure Resource Group for backend')
-        string(name: 'STORAGE_ACCOUNT_NAME', defaultValue: 'pankajmathpal99001122', description: 'Storage Account for backend')
-        string(name: 'CONTAINER_NAME', defaultValue: 'mycon1212', description: 'Container for storing state file')
+        string(name: 'LOCATION', defaultValue: 'eastus')
+        string(name: 'RG_NAME', defaultValue: 'test-rg1')
+        string(name: 'STORAGE_ACCOUNT_NAME', defaultValue: 'pankajmathpal99001122')
+        string(name: 'CONTAINER_NAME', defaultValue: 'mycon1212')
     }
 
     stages {
         stage('Add GitHub to known_hosts') {
             steps {
-                sshagent(['github-ssh-credential']) {
-                    sh '''
-                        mkdir -p ~/.ssh
-                        ssh-keyscan github.com >> ~/.ssh/known_hosts
-                        chmod 644 ~/.ssh/known_hosts
-                    '''
-                }
+                sh '''
+                    mkdir -p ~/.ssh
+                    ssh-keyscan github.com >> ~/.ssh/known_hosts
+                    chmod 644 ~/.ssh/known_hosts
+                '''
             }
         }
 
         stage('Checkout Code from GitHub') {
             steps {
-                sshagent(['github-ssh-credential']) {
-                    checkout([$class: 'GitSCM', branches: [[name: 'main']],
-                        userRemoteConfigs: [[
-                            url: 'git@github.com:pmathpal1/test-repo1.git'
-                        ]]
-                    ])
+                sshagent (credentials: ['github-ssh-credential']) {
+                    git url: 'git@github.com:pmathpal1/test-repo1.git', branch: 'main'
                 }
             }
         }
