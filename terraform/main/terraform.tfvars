@@ -1,3 +1,6 @@
+rg_name  = "test-rg1"
+location = "East US"
+
 vnet = [
   { name = "hub-vnet", address_space = "10.0.0.0/16" },
   { name = "spoke1-vnet", address_space = "20.0.0.0/16" },

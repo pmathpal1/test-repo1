@@ -16,18 +16,31 @@ pipeline {
     }
 
     stages {
+        stage('Prepare SSH') {
+            steps {
+                sh '''
+                    mkdir -p ~/.ssh
+                    ssh-keyscan github.com > ~/.ssh/known_hosts
+                    chmod 644 ~/.ssh/known_hosts
+                '''
+            }
+        }
+
         stage('Checkout Code from GitHub') {
             steps {
-                script {
-                    // Add GitHub SSH key to known_hosts inside the Jenkins environment
-                    sh '''
-                        mkdir -p ~/.ssh
-                        ssh-keyscan github.com >> ~/.ssh/known_hosts
-                        chmod 644 ~/.ssh/known_hosts
-                    '''
+                git credentialsId: 'github-ssh-credential', url: 'git@github.com:pmathpal1/test-repo1.git', branch: 'main'
+            }
+        }
 
-                    // Checkout code from GitHub using SSH credentials
-                    git credentialsId: 'github-ssh-credential', url: 'git@github.com:pmathpal1/test-repo1.git', branch: 'main'
+        stage('Terraform Format & Validate') {
+            steps {
+                dir('terraform/main') {
+                    script {
+                        docker.image('hashicorp/terraform:1.5.6').inside {
+                            sh 'terraform fmt -check'
+                            sh 'terraform validate'
+                        }
+                    }
                 }
             }
         }
@@ -42,29 +55,15 @@ pipeline {
                         "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
                     ]) {
                         script {
-                            docker.image('hashicorp/terraform:latest').inside {
+                            docker.image('hashicorp/terraform:1.5.6').inside {
                                 sh """
                                     terraform init \
                                         -backend-config="resource_group_name=${params.RG_NAME}" \
                                         -backend-config="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
                                         -backend-config="container_name=${params.CONTAINER_NAME}" \
-                                        -backend-config="key=terraform.tfstate" \
-                                        -force-copy
+                                        -backend-config="key=terraform.tfstate"
                                 """
                             }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Terraform Format & Validate') {
-            steps {
-                dir('terraform/main') {
-                    script {
-                        docker.image('hashicorp/terraform:latest').inside {
-                            sh 'terraform fmt -check'
-                            sh 'terraform validate'
                         }
                     }
                 }
@@ -75,7 +74,8 @@ pipeline {
             steps {
                 dir('terraform/main') {
                     script {
-                        docker.image('hashicorp/terraform:latest').inside {
+                        docker.image('hashicorp/terraform:1.5.6').inside {
+                            // terraform.tfvars will be loaded automatically
                             sh 'terraform plan -out=tfplan'
                         }
                     }
@@ -87,7 +87,7 @@ pipeline {
             steps {
                 dir('terraform/main') {
                     script {
-                        docker.image('hashicorp/terraform:latest').inside {
+                        docker.image('hashicorp/terraform:1.5.6').inside {
                             sh 'terraform apply -auto-approve tfplan'
                         }
                     }
@@ -97,11 +97,11 @@ pipeline {
     }
 
     post {
-        failure {
-            echo 'Terraform pipeline failed!'
-        }
         success {
-            echo 'Terraform pipeline completed successfully!'
+            echo '✅ Terraform pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Terraform pipeline failed!'
         }
     }
 }
