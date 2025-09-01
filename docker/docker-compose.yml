@@ -1,0 +1,21 @@
+version: '3.8'  # Optional, but fine to keep
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts  # Pulls the official Jenkins image from Docker Hub
+    container_name: jenkins
+    user: root  # Running as root for permission issues with Docker socket
+    ports:
+      - "8080:8080"  # Jenkins web interface
+      - "50000:50000"  # Jenkins agent connection
+    volumes:
+      - jenkins_home:/var/jenkins_home  # Persistent data for Jenkins
+      - /var/run/docker.sock:/var/run/docker.sock  # Allow Jenkins to use Docker
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false  # Skip the Jenkins setup wizard
+      - JENKINS_ADMIN_ID=admin  # Jenkins admin user
+      - JENKINS_ADMIN_PASSWORD=admin123  # Jenkins admin password
+
+volumes:
+  jenkins_home:
+    driver: local
