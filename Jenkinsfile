@@ -28,7 +28,12 @@ pipeline {
 
         stage('Checkout Code from GitHub') {
             steps {
-                git credentialsId: 'github-ssh-credential', url: 'git@github.com:pmathpal1/test-repo1.git', branch: 'main'
+                checkout([$class: 'GitSCM', branches: [[name: 'main']],
+                    userRemoteConfigs: [[
+                        url: 'git@github.com:pmathpal1/test-repo1.git',
+                        credentialsId: 'github-ssh-credential'
+                    ]]
+                ])
             }
         }
 
@@ -75,7 +80,7 @@ pipeline {
                 dir('terraform/main') {
                     script {
                         docker.image('hashicorp/terraform:1.5.6').inside {
-                            // terraform.tfvars will be loaded automatically
+                            // terraform.tfvars picked automatically
                             sh 'terraform plan -out=tfplan'
                         }
                     }
