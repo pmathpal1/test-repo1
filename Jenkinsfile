@@ -26,14 +26,13 @@ pipeline {
             }
         }
 
-        stage('Debug SSH Agent') {
+        stage('Test SSH Agent') {
             steps {
-                sshagent (credentials: ['github-ssh-credential']) {
+                sshagent(credentials: ['github-ssh-credential']) {
                     sh '''
                         echo "Testing SSH connection to GitHub..."
                         ssh -T git@github.com || true
-                        echo "SSH_AUTH_SOCK environment variable:"
-                        env | grep SSH_AUTH_SOCK || true
+                        echo "SSH_AUTH_SOCK is $SSH_AUTH_SOCK"
                     '''
                 }
             }
@@ -41,7 +40,7 @@ pipeline {
 
         stage('Checkout Code from GitHub') {
             steps {
-                sshagent (credentials: ['github-ssh-credential']) {
+                sshagent(credentials: ['github-ssh-credential']) {
                     git url: 'git@github.com:pmathpal1/test-repo1.git', branch: 'main'
                 }
             }
