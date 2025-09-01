@@ -25,6 +25,16 @@ pipeline {
                 '''
             }
         }
+        
+        stage('Debug SSH Keys') {
+            steps {
+                sh '''
+                    whoami
+                    ls -l ~/.ssh
+                    ssh-add -l || echo "No keys loaded"
+                '''
+            }
+        }
 
         stage('Checkout Code from GitHub') {
             steps {
@@ -80,7 +90,6 @@ pipeline {
                 dir('terraform/main') {
                     script {
                         docker.image('hashicorp/terraform:1.5.6').inside {
-                            // terraform.tfvars picked automatically
                             sh 'terraform plan -out=tfplan'
                         }
                     }
