@@ -16,10 +16,21 @@ pipeline {
     }
 
     stages {
+        stage('Add GitHub to known_hosts') {
+            steps {
+                sshagent(['github-ssh-credential']) {
+                    sh '''
+                        mkdir -p ~/.ssh
+                        ssh-keyscan github.com >> ~/.ssh/known_hosts
+                        chmod 644 ~/.ssh/known_hosts
+                    '''
+                }
+            }
+        }
+
         stage('Checkout Code from GitHub') {
             steps {
-                // Use Jenkins SSH Agent plugin to inject the private key
-                sshagent(credentials: ['github-ssh-credential']) {
+                sshagent(['github-ssh-credential']) {
                     checkout([$class: 'GitSCM', branches: [[name: 'main']],
                         userRemoteConfigs: [[
                             url: 'git@github.com:pmathpal1/test-repo1.git'
