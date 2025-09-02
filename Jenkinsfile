@@ -3,6 +3,12 @@ pipeline {
 
     environment {
         TERRAFORM_VERSION = "1.6.10"
+
+        // Azure Service Principal credentials pulled from Jenkins
+        ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
+        ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
+        ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
+        ARM_SUBSCRIPTION_ID = credentials('AZURE_SUBSCRIPTION_ID')
     }
 
     stages {
@@ -20,19 +26,12 @@ pipeline {
 
         stage('Azure Login') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'TENANT'),
-                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'SUBSCRIPTION'),
-                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'CLIENT'),
-                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'SECRET')
-                ]) {
-                    sh '''
-                        echo "Logging in to Azure..."
-                        az login --service-principal -u $CLIENT -p $SECRET --tenant $TENANT
-                        az account set --subscription $SUBSCRIPTION
-                        az account show
-                    '''
-                }
+                sh '''
+                    echo "Logging in to Azure..."
+                    az login --service-principal -u $ARM_CLIENT_ID -p $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
+                    az account set --subscription $ARM_SUBSCRIPTION_ID
+                    az account show
+                '''
             }
         }
 
@@ -54,7 +53,7 @@ pipeline {
         stage('Terraform Init & Plan') {
             steps {
                 script {
-                    // Find folder containing any *.tf file
+                    // Detect directory containing Terraform files
                     def tfDir = sh(script: "find test-repo1 -type f -name '*.tf' -exec dirname {} \\; | sort -u | head -n 1", returnStdout: true).trim()
                     if (!tfDir) {
                         error "No Terraform configuration files found!"
@@ -62,12 +61,13 @@ pipeline {
                     echo "Terraform directory detected: ${tfDir}"
 
                     dir(tfDir) {
+                        // Use ARM_ environment variables directly
                         sh '''
                             terraform init
-                            terraform plan -out=tfplan
+                            terraform plan -out=tfplan -var "subscription_id=$ARM_SUBSCRIPTION_ID"
                         '''
                     }
-                    // Save directory for apply stage
+
                     env.TF_DIR = tfDir
                 }
             }
@@ -77,7 +77,7 @@ pipeline {
             steps {
                 input message: "Apply Terraform changes?"
                 dir(env.TF_DIR) {
-                    sh 'terraform apply -auto-approve tfplan'
+                    sh 'terraform apply -auto-approve -var "subscription_id=$ARM_SUBSCRIPTION_ID" tfplan'
                 }
             }
         }
