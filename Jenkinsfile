@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        // Optional global environment variables
         TERRAFORM_VERSION = "1.6.10"
     }
 
@@ -10,9 +9,15 @@ pipeline {
 
         stage('Checkout from GitHub') {
             steps {
-                git branch: 'main',
-                    url: 'git@github.com:pmathpal1/test-repo1.git',
-                    credentialsId: 'github-ssh'
+                // Use sshagent to ensure Jenkins uses the SSH key
+                sshagent(['gitHub-ssh']) {
+                    sh '''
+                        mkdir -p ~/.ssh
+                        ssh-keyscan github.com >> ~/.ssh/known_hosts
+                        git clone -b main git@github.com:pmathpal1/test-repo1.git repo
+                        cd repo
+                    '''
+                }
             }
         }
 
@@ -55,6 +60,7 @@ pipeline {
         stage('Terraform Init & Plan') {
             steps {
                 sh '''
+                    cd repo
                     terraform init
                     terraform plan -out=tfplan
                 '''
@@ -64,7 +70,10 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 input message: "Apply Terraform changes?"
-                sh 'terraform apply -auto-approve tfplan'
+                sh '''
+                    cd repo
+                    terraform apply -auto-approve tfplan
+                '''
             }
         }
     }
