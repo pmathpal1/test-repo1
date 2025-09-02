@@ -53,7 +53,6 @@ pipeline {
         stage('Terraform Init & Plan') {
             steps {
                 script {
-                    // Detect directory containing Terraform files
                     def tfDir = sh(script: "find test-repo1 -type f -name '*.tf' -exec dirname {} \\; | sort -u | head -n 1", returnStdout: true).trim()
                     if (!tfDir) {
                         error "No Terraform configuration files found!"
@@ -61,7 +60,6 @@ pipeline {
                     echo "Terraform directory detected: ${tfDir}"
 
                     dir(tfDir) {
-                        // Use ARM_ environment variables directly
                         sh '''
                             terraform init
                             terraform plan -out=tfplan -var "subscription_id=$ARM_SUBSCRIPTION_ID"
@@ -81,8 +79,8 @@ pipeline {
                 }
             }
         }
-    }
-            stage('Terraform Destroy') {
+
+        stage('Terraform Destroy') {
             steps {
                 input message: "Destroy Terraform-managed resources?"
                 dir(env.TF_DIR) {
