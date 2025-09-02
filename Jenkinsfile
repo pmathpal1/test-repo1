@@ -9,11 +9,12 @@ pipeline {
 
         stage('Checkout from GitHub') {
             steps {
-                // Inject SSH key using sshagent
-                sshagent(['gitHub-ssh']) {
+                sshagent(credentials: ['gitHub-ssh']) {
                     sh '''
-                        rm -rf test-repo1 || true
+                        # Clean workspace before cloning
+                        rm -rf test-repo1
                         git clone -b main git@github.com:pmathpal1/test-repo1.git
+                        cd test-repo1
                     '''
                 }
             }
@@ -29,7 +30,10 @@ pipeline {
                 ]) {
                     sh '''
                         echo "Logging in to Azure..."
-                        az login --service-principal -u $CLIENT -p $SECRET --tenant $TENANT
+                        az login --service-principal \
+                          -u $CLIENT \
+                          -p $SECRET \
+                          --tenant $TENANT
                         az account set --subscription $SUBSCRIPTION
                         az account show
                     '''
@@ -54,7 +58,7 @@ pipeline {
 
         stage('Terraform Init & Plan') {
             steps {
-                dir('test-repo1') { // Change directory to cloned repo
+                dir('test-repo1') {
                     sh '''
                         terraform init
                         terraform plan -out=tfplan
@@ -74,8 +78,14 @@ pipeline {
     }
 
     post {
-        always { echo "Pipeline finished." }
-        success { echo "Pipeline completed successfully!" }
-        failure { echo "Pipeline failed!" }
+        always {
+            echo "Pipeline finished."
+        }
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed!"
+        }
     }
 }
