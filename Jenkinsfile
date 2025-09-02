@@ -2,54 +2,66 @@ pipeline {
     agent any
 
     environment {
-        ARM_TENANT_ID     = credentials('ARM_TENANT_ID')
+        ARM_CLIENT_ID       = credentials('ARM_CLIENT_ID')
+        ARM_CLIENT_SECRET   = credentials('ARM_CLIENT_SECRET')
         ARM_SUBSCRIPTION_ID = credentials('ARM_SUBSCRIPTION_ID')
-        ARM_CLIENT_ID     = credentials('ARM_CLIENT_ID')
-        ARM_CLIENT_SECRET = credentials('ARM_CLIENT_SECRET')
+        ARM_TENANT_ID       = credentials('ARM_TENANT_ID')
+    }
+
+    parameters {
+        string(name: 'LOCATION', defaultValue: 'eastus')
+        string(name: 'RG_NAME', defaultValue: 'test-rg1')
+        string(name: 'STORAGE_ACCOUNT_NAME', defaultValue: 'pankajmathpal99001122')
+        string(name: 'CONTAINER_NAME', defaultValue: 'mycon1212')
     }
 
     stages {
+        stage('Validate Azure Credentials') {
+            steps {
+                script {
+                    def creds = [
+                        "ARM_CLIENT_ID": env.ARM_CLIENT_ID,
+                        "ARM_CLIENT_SECRET": env.ARM_CLIENT_SECRET,
+                        "ARM_SUBSCRIPTION_ID": env.ARM_SUBSCRIPTION_ID,
+                        "ARM_TENANT_ID": env.ARM_TENANT_ID
+                    ]
+                    creds.each { key, value ->
+                        if (!value?.trim()) {
+                            error "❌ Missing Azure credential: ${key}. Please add it in Jenkins → Manage Jenkins → Credentials."
+                        }
+                    }
+                    echo "✅ All Azure credentials are available."
+                }
+            }
+        }
+
         stage('Add GitHub to known_hosts') {
             steps {
                 sh '''
-                    mkdir -p /var/jenkins_home/.ssh
-                    ssh-keyscan github.com >> /var/jenkins_home/.ssh/known_hosts
-                    chmod 644 /var/jenkins_home/.ssh/known_hosts
+                    mkdir -p ~/.ssh
+                    ssh-keyscan github.com >> ~/.ssh/known_hosts
+                    chmod 644 ~/.ssh/known_hosts
                 '''
             }
         }
 
         stage('Checkout Code from GitHub') {
             steps {
-                git branch: 'main',
-                    url: 'git@github.com:pmathpal1/test-repo1.git',
-                    credentialsId: 'gitHub-ssh'
-            }
-        }
-
-        stage('Install Terraform if missing') {
-            steps {
-                sh '''
-                    if ! command -v terraform &> /dev/null
-                    then
-                        echo "🚀 Installing Terraform..."
-                        apt-get update && apt-get install -y wget unzip
-                        wget -q https://releases.hashicorp.com/terraform/1.9.5/terraform_1.9.5_linux_amd64.zip
-                        unzip terraform_1.9.5_linux_amd64.zip
-                        mv terraform /usr/local/bin/
-                        terraform -v
-                    else
-                        echo "✅ Terraform already installed: $(terraform -v)"
-                    fi
-                '''
+                sshagent(credentials: ['gitHub-ssh']) {
+                    git url: 'git@github.com:pmathpal1/test-repo1.git', branch: 'main'
+                }
             }
         }
 
         stage('Terraform Format & Validate') {
             steps {
                 dir('terraform/main') {
-                    sh 'terraform fmt -check'
-                    sh 'terraform validate'
+                    script {
+                        docker.image('hashicorp/terraform:1.5.6').inside {
+                            sh 'terraform fmt -check'
+                            sh 'terraform validate'
+                        }
+                    }
                 }
             }
         }
@@ -57,7 +69,24 @@ pipeline {
         stage('Terraform Init with Remote Backend') {
             steps {
                 dir('terraform/main') {
-                    sh 'terraform init -input=false'
+                    withEnv([
+                        "ARM_CLIENT_ID=${env.ARM_CLIENT_ID}",
+                        "ARM_CLIENT_SECRET=${env.ARM_CLIENT_SECRET}",
+                        "ARM_SUBSCRIPTION_ID=${env.ARM_SUBSCRIPTION_ID}",
+                        "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
+                    ]) {
+                        script {
+                            docker.image('hashicorp/terraform:1.5.6').inside {
+                                sh """
+                                    terraform init \
+                                        -backend-config="resource_group_name=${params.RG_NAME}" \
+                                        -backend-config="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
+                                        -backend-config="container_name=${params.CONTAINER_NAME}" \
+                                        -backend-config="key=terraform.tfstate"
+                                """
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -65,7 +94,11 @@ pipeline {
         stage('Terraform Plan') {
             steps {
                 dir('terraform/main') {
-                    sh 'terraform plan -input=false'
+                    script {
+                        docker.image('hashicorp/terraform:1.5.6').inside {
+                            sh 'terraform plan -out=tfplan'
+                        }
+                    }
                 }
             }
         }
@@ -73,15 +106,11 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform/main') {
-                    sh 'terraform apply -auto-approve -input=false'
-                }
-            }
-        }
-
-        stage('Terraform Destroy') {
-            steps {
-                dir('terraform/main') {
-                    sh 'terraform destroy -auto-approve -input=false'
+                    script {
+                        docker.image('hashicorp/terraform:1.5.6').inside {
+                            sh 'terraform apply -auto-approve tfplan'
+                        }
+                    }
                 }
             }
         }
@@ -89,10 +118,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Terraform pipeline completed successfully!"
+            echo '✅ Terraform pipeline completed successfully!'
         }
         failure {
-            echo "❌ Terraform pipeline failed!"
+            echo '❌ Terraform pipeline failed!'
         }
     }
 }
