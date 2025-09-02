@@ -1,37 +1,57 @@
 pipeline {
     agent any
 
-    environment {
-        ARM_TENANT_ID     = credentials('azure-tenant-id')
-        ARM_SUBSCRIPTION_ID = credentials('azure-subscription-id')
-        ARM_CLIENT_ID     = credentials('azure-client-id')
-        ARM_CLIENT_SECRET = credentials('azure-client-secret')
-    }
-
     stages {
-        stage('Checkout Code') {
+        stage('Check Azure Credentials') {
             steps {
-                git branch: 'main',
-                    url: 'git@github.com:pmathpal1/test-repo1.git',
-                    credentialsId: 'gitHub-ssh'
+                withCredentials([
+                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'TENANT'),
+                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'SUBSCRIPTION'),
+                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'CLIENT'),
+                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'SECRET')
+                ]) {
+                    sh '''
+                        echo "✅ Tenant ID: $TENANT"
+                        echo "✅ Subscription ID: $SUBSCRIPTION"
+                        echo "✅ Client ID: $CLIENT"
+                        echo "✅ Client Secret is set (hidden)"
+                    '''
+                }
+            }
+        }
+
+        stage('Azure Login') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'TENANT'),
+                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'SUBSCRIPTION'),
+                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'CLIENT'),
+                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'SECRET')
+                ]) {
+                    sh '''
+                        az login --service-principal \
+                          -u $CLIENT \
+                          -p $SECRET \
+                          --tenant $TENANT
+
+                        az account set --subscription $SUBSCRIPTION
+                        echo "✅ Azure login successful"
+                    '''
+                }
             }
         }
 
         stage('Install Terraform') {
             steps {
                 sh '''
-                if ! command -v terraform &> /dev/null
-                then
-                    echo "⚙️ Installing Terraform..."
-                    apt-get update && apt-get install -y wget unzip
-                    wget -q https://releases.hashicorp.com/terraform/1.9.5/terraform_1.9.5_linux_amd64.zip
-                    unzip -o terraform_1.9.5_linux_amd64.zip
-                    mv terraform /usr/local/bin/
-                else
-                    echo "✅ Terraform already installed."
-                fi
-
-                terraform -v
+                    if ! command -v terraform >/dev/null; then
+                      echo "⬇️ Installing Terraform..."
+                      curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+                      echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
+                      apt-get update && apt-get install -y terraform
+                    else
+                      echo "✅ Terraform already installed"
+                    fi
                 '''
             }
         }
@@ -39,30 +59,17 @@ pipeline {
         stage('Terraform Init & Plan') {
             steps {
                 sh '''
-                echo "🔑 Using Azure credentials from Jenkins"
-                echo "👉 Running Terraform Init..."
-                terraform init
-                terraform plan -out=tfplan
+                    terraform init
+                    terraform plan -out=tfplan
                 '''
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                sh '''
-                echo "🚀 Applying Terraform changes..."
-                terraform apply -auto-approve tfplan
-                '''
+                input message: "Apply Terraform changes?"
+                sh 'terraform apply -auto-approve tfplan'
             }
-        }
-    }
-
-    post {
-        failure {
-            echo "❌ Terraform pipeline failed!"
-        }
-        success {
-            echo "✅ Terraform pipeline completed successfully!"
         }
     }
 }
