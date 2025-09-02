@@ -82,6 +82,15 @@ pipeline {
             }
         }
     }
+            stage('Terraform Destroy') {
+            steps {
+                input message: "Destroy Terraform-managed resources?"
+                dir(env.TF_DIR) {
+                    sh 'terraform destroy -auto-approve -var "subscription_id=$ARM_SUBSCRIPTION_ID"'
+                }
+            }
+        }
+    }
 
     post {
         always { echo "Pipeline finished." }
