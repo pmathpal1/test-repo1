@@ -2,6 +2,14 @@ pipeline {
     agent any
 
     stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'git@github.com:pmathpal1/test-repo1.git',
+                    credentialsId: 'github-ssh'
+            }
+        }
+
         stage('Check Azure Credentials') {
             steps {
                 withCredentials([
@@ -17,6 +25,19 @@ pipeline {
                         echo "✅ Client Secret is set (hidden)"
                     '''
                 }
+            }
+        }
+
+        stage('Install Azure CLI') {
+            steps {
+                sh '''
+                    if ! command -v az >/dev/null; then
+                      echo "⬇️ Installing Azure CLI..."
+                      curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+                    else
+                      echo "✅ Azure CLI already installed"
+                    fi
+                '''
             }
         }
 
