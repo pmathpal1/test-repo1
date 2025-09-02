@@ -9,11 +9,10 @@ pipeline {
 
         stage('Checkout from GitHub') {
             steps {
-                // Use sshagent to ensure Jenkins uses the SSH key
                 sshagent(['gitHub-ssh']) {
                     sh '''
-                        mkdir -p ~/.ssh
-                        ssh-keyscan github.com >> ~/.ssh/known_hosts
+                        # Remove existing folder if it exists
+                        [ -d repo ] && rm -rf repo
                         git clone -b main git@github.com:pmathpal1/test-repo1.git repo
                         cd repo
                     '''
@@ -59,21 +58,21 @@ pipeline {
 
         stage('Terraform Init & Plan') {
             steps {
-                sh '''
-                    cd repo
-                    terraform init
-                    terraform plan -out=tfplan
-                '''
+                dir('repo') {   // Make sure to run inside your cloned repo
+                    sh '''
+                        terraform init
+                        terraform plan -out=tfplan
+                    '''
+                }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                input message: "Apply Terraform changes?"
-                sh '''
-                    cd repo
-                    terraform apply -auto-approve tfplan
-                '''
+                dir('repo') {
+                    input message: "Apply Terraform changes?"
+                    sh 'terraform apply -auto-approve tfplan'
+                }
             }
         }
     }
