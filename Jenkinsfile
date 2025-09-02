@@ -53,15 +53,15 @@ pipeline {
         stage('Terraform Bootstrap Init & Apply') {
             steps {
                 script {
-                    def bootstrapDir = 'test-repo1/terraform/bootstrap'
-                    dir(bootstrapDir) {
+                    def tfDir = 'test-repo1/terraform/bootstrap'
+                    dir(tfDir) {
                         sh '''
                             terraform init
-                            terraform plan -out=tfplan -var "subscription_id=$ARM_SUBSCRIPTION_ID" -var-file="terraform.tfvars"
-                            terraform apply -auto-approve -var "subscription_id=$ARM_SUBSCRIPTION_ID" -var-file="terraform.tfvars" tfplan
+                            terraform plan -out=tfplan -var-file=terraform.tfvars
+                            terraform apply -auto-approve -var-file=terraform.tfvars tfplan
                         '''
                     }
-                    env.BOOTSTRAP_DIR = bootstrapDir
+                    env.TF_DIR_BOOTSTRAP = tfDir
                 }
             }
         }
@@ -69,34 +69,15 @@ pipeline {
         stage('Terraform Main Init & Apply') {
             steps {
                 script {
-                    def mainDir = 'test-repo1/terraform/main'
-                    dir(mainDir) {
-                        // Reconfigure backend to use storage account/container created in bootstrap
+                    def tfDir = 'test-repo1/terraform/main'
+                    dir(tfDir) {
                         sh '''
-                            terraform init -reconfigure \
-                                -backend-config="resource_group_name=test-rg1" \
-                                -backend-config="storage_account_name=pankajmathpal99001122" \
-                                -backend-config="container_name=mycon1212" \
-                                -backend-config="key=terraform.tfstate"
-
-                            terraform plan -out=tfplan -var "subscription_id=$ARM_SUBSCRIPTION_ID" -var-file="terraform.tfvars"
-                            terraform apply -auto-approve -var "subscription_id=$ARM_SUBSCRIPTION_ID" -var-file="terraform.tfvars" tfplan
+                            terraform init
+                            terraform plan -out=tfplan -var-file=terraform.tfvars
+                            terraform apply -auto-approve -var-file=terraform.tfvars tfplan
                         '''
                     }
-                    env.MAIN_DIR = mainDir
-                }
-            }
-        }
-
-        stage('Terraform Destroy') {
-            steps {
-                input message: "Destroy all Terraform-managed resources?"
-                // Destroy main first, then bootstrap
-                dir(env.MAIN_DIR) {
-                    sh 'terraform destroy -auto-approve -var "subscription_id=$ARM_SUBSCRIPTION_ID" -var-file="terraform.tfvars"'
-                }
-                dir(env.BOOTSTRAP_DIR) {
-                    sh 'terraform destroy -auto-approve -var "subscription_id=$ARM_SUBSCRIPTION_ID" -var-file="terraform.tfvars"'
+                    env.TF_DIR_MAIN = tfDir
                 }
             }
         }
