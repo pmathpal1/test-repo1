@@ -9,12 +9,11 @@ pipeline {
 
         stage('Checkout from GitHub') {
             steps {
+                // Inject SSH key using sshagent
                 sshagent(['gitHub-ssh']) {
                     sh '''
-                        # Remove existing folder if it exists
-                        [ -d repo ] && rm -rf repo
-                        git clone -b main git@github.com:pmathpal1/test-repo1.git repo
-                        cd repo
+                        rm -rf test-repo1 || true
+                        git clone -b main git@github.com:pmathpal1/test-repo1.git
                     '''
                 }
             }
@@ -30,10 +29,7 @@ pipeline {
                 ]) {
                     sh '''
                         echo "Logging in to Azure..."
-                        az login --service-principal \
-                          -u $CLIENT \
-                          -p $SECRET \
-                          --tenant $TENANT
+                        az login --service-principal -u $CLIENT -p $SECRET --tenant $TENANT
                         az account set --subscription $SUBSCRIPTION
                         az account show
                     '''
@@ -58,7 +54,7 @@ pipeline {
 
         stage('Terraform Init & Plan') {
             steps {
-                dir('repo') {   // Make sure to run inside your cloned repo
+                dir('test-repo1') { // Change directory to cloned repo
                     sh '''
                         terraform init
                         terraform plan -out=tfplan
@@ -69,7 +65,7 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                dir('repo') {
+                dir('test-repo1') {
                     input message: "Apply Terraform changes?"
                     sh 'terraform apply -auto-approve tfplan'
                 }
@@ -78,14 +74,8 @@ pipeline {
     }
 
     post {
-        always {
-            echo "Pipeline finished."
-        }
-        success {
-            echo "Pipeline completed successfully!"
-        }
-        failure {
-            echo "Pipeline failed!"
-        }
+        always { echo "Pipeline finished." }
+        success { echo "Pipeline completed successfully!" }
+        failure { echo "Pipeline failed!" }
     }
 }
