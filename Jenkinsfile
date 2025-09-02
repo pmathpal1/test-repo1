@@ -9,11 +9,13 @@ pipeline {
 
         stage('Checkout from GitHub') {
             steps {
-                sshagent(credentials: ['gitHub-ssh']) { // Use your Jenkins credential ID here
-                    sh 'git clone git@github.com:pmathpal1/test-repo1.git'
-                    dir('test-repo1') {
-                        sh 'git checkout main'
-                    }
+                sshagent(credentials: ['gitHub-ssh']) {
+                    sh '''
+                        rm -rf test-repo1
+                        git clone git@github.com:pmathpal1/test-repo1.git
+                        cd test-repo1
+                        git checkout main
+                    '''
                 }
             }
         }
@@ -28,10 +30,7 @@ pipeline {
                 ]) {
                     sh '''
                         echo "Logging in to Azure..."
-                        az login --service-principal \
-                          -u $CLIENT \
-                          -p $SECRET \
-                          --tenant $TENANT
+                        az login --service-principal -u $CLIENT -p $SECRET --tenant $TENANT
                         az account set --subscription $SUBSCRIPTION
                         az account show
                     '''
