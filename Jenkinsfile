@@ -1,43 +1,17 @@
 pipeline {
     agent any
 
+    environment {
+        // Optional: Set environment variables here if needed
+    }
+
     stages {
-        stage('Checkout') {
+
+        stage('Checkout from GitHub') {
             steps {
                 git branch: 'main',
                     url: 'git@github.com:pmathpal1/test-repo1.git',
                     credentialsId: 'github-ssh'
-            }
-        }
-
-        stage('Check Azure Credentials') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'AZURE_TENANT_ID', variable: 'TENANT'),
-                    string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'SUBSCRIPTION'),
-                    string(credentialsId: 'AZURE_CLIENT_ID', variable: 'CLIENT'),
-                    string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'SECRET')
-                ]) {
-                    sh '''
-                        echo "✅ Tenant ID: $TENANT"
-                        echo "✅ Subscription ID: $SUBSCRIPTION"
-                        echo "✅ Client ID: $CLIENT"
-                        echo "✅ Client Secret is set (hidden)"
-                    '''
-                }
-            }
-        }
-
-        stage('Install Azure CLI') {
-            steps {
-                sh '''
-                    if ! command -v az >/dev/null; then
-                      echo "⬇️ Installing Azure CLI..."
-                      curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-                    else
-                      echo "✅ Azure CLI already installed"
-                    fi
-                '''
             }
         }
 
@@ -50,13 +24,13 @@ pipeline {
                     string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'SECRET')
                 ]) {
                     sh '''
+                        echo "Logging in to Azure..."
                         az login --service-principal \
                           -u $CLIENT \
                           -p $SECRET \
                           --tenant $TENANT
-
                         az account set --subscription $SUBSCRIPTION
-                        echo "✅ Azure login successful"
+                        az account show
                     '''
                 }
             }
@@ -66,12 +40,12 @@ pipeline {
             steps {
                 sh '''
                     if ! command -v terraform >/dev/null; then
-                      echo "⬇️ Installing Terraform..."
-                      curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-                      echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
-                      apt-get update && apt-get install -y terraform
+                        echo "Installing Terraform..."
+                        curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+                        echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
+                        apt-get update && apt-get install -y terraform
                     else
-                      echo "✅ Terraform already installed"
+                        echo "Terraform already installed"
                     fi
                 '''
             }
@@ -91,6 +65,18 @@ pipeline {
                 input message: "Apply Terraform changes?"
                 sh 'terraform apply -auto-approve tfplan'
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline finished"
+        }
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed!"
         }
     }
 }
