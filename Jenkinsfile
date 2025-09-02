@@ -2,26 +2,19 @@ pipeline {
     agent any
 
     environment {
-        ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
-        ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
-        ARM_SUBSCRIPTION_ID = credentials('AZURE_SUBSCRIPTION_ID')
-        ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
-    }
-
-    parameters {
-        string(name: 'LOCATION', defaultValue: 'eastus')
-        string(name: 'RG_NAME', defaultValue: 'test-rg1')
-        string(name: 'STORAGE_ACCOUNT_NAME', defaultValue: 'pankajmathpal99001122')
-        string(name: 'CONTAINER_NAME', defaultValue: 'mycon1212')
+        ARM_TENANT_ID     = credentials('ARM_TENANT_ID')
+        ARM_SUBSCRIPTION_ID = credentials('ARM_SUBSCRIPTION_ID')
+        ARM_CLIENT_ID     = credentials('ARM_CLIENT_ID')
+        ARM_CLIENT_SECRET = credentials('ARM_CLIENT_SECRET')
     }
 
     stages {
         stage('Add GitHub to known_hosts') {
             steps {
                 sh '''
-                    mkdir -p ~/.ssh
-                    ssh-keyscan github.com >> ~/.ssh/known_hosts
-                    chmod 644 ~/.ssh/known_hosts
+                    mkdir -p /var/jenkins_home/.ssh
+                    ssh-keyscan github.com >> /var/jenkins_home/.ssh/known_hosts
+                    chmod 644 /var/jenkins_home/.ssh/known_hosts
                 '''
             }
         }
@@ -31,6 +24,24 @@ pipeline {
                 git branch: 'main',
                     url: 'git@github.com:pmathpal1/test-repo1.git',
                     credentialsId: 'gitHub-ssh'
+            }
+        }
+
+        stage('Install Terraform if missing') {
+            steps {
+                sh '''
+                    if ! command -v terraform &> /dev/null
+                    then
+                        echo "🚀 Installing Terraform..."
+                        apt-get update && apt-get install -y wget unzip
+                        wget -q https://releases.hashicorp.com/terraform/1.9.5/terraform_1.9.5_linux_amd64.zip
+                        unzip terraform_1.9.5_linux_amd64.zip
+                        mv terraform /usr/local/bin/
+                        terraform -v
+                    else
+                        echo "✅ Terraform already installed: $(terraform -v)"
+                    fi
+                '''
             }
         }
 
@@ -46,20 +57,7 @@ pipeline {
         stage('Terraform Init with Remote Backend') {
             steps {
                 dir('terraform/main') {
-                    withEnv([
-                        "ARM_CLIENT_ID=${env.ARM_CLIENT_ID}",
-                        "ARM_CLIENT_SECRET=${env.ARM_CLIENT_SECRET}",
-                        "ARM_SUBSCRIPTION_ID=${env.ARM_SUBSCRIPTION_ID}",
-                        "ARM_TENANT_ID=${env.ARM_TENANT_ID}"
-                    ]) {
-                        sh """
-                            terraform init \
-                                -backend-config="resource_group_name=${params.RG_NAME}" \
-                                -backend-config="storage_account_name=${params.STORAGE_ACCOUNT_NAME}" \
-                                -backend-config="container_name=${params.CONTAINER_NAME}" \
-                                -backend-config="key=terraform.tfstate"
-                        """
-                    }
+                    sh 'terraform init -input=false'
                 }
             }
         }
@@ -67,7 +65,7 @@ pipeline {
         stage('Terraform Plan') {
             steps {
                 dir('terraform/main') {
-                    sh 'terraform plan -out=tfplan'
+                    sh 'terraform plan -input=false'
                 }
             }
         }
@@ -75,18 +73,15 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform/main') {
-                    sh 'terraform apply -auto-approve tfplan'
+                    sh 'terraform apply -auto-approve -input=false'
                 }
             }
         }
 
         stage('Terraform Destroy') {
-            when {
-                expression { return params.DESTROY == true }
-            }
             steps {
                 dir('terraform/main') {
-                    sh 'terraform destroy -auto-approve'
+                    sh 'terraform destroy -auto-approve -input=false'
                 }
             }
         }
@@ -94,10 +89,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Terraform pipeline completed successfully!'
+            echo "✅ Terraform pipeline completed successfully!"
         }
         failure {
-            echo '❌ Terraform pipeline failed!'
+            echo "❌ Terraform pipeline failed!"
         }
     }
 }
