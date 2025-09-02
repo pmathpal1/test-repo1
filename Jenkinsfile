@@ -13,8 +13,6 @@ pipeline {
                     sh '''
                         rm -rf test-repo1
                         git clone git@github.com:pmathpal1/test-repo1.git
-                        cd test-repo1
-                        git checkout main
                     '''
                 }
             }
@@ -30,7 +28,10 @@ pipeline {
                 ]) {
                     sh '''
                         echo "Logging in to Azure..."
-                        az login --service-principal -u $CLIENT -p $SECRET --tenant $TENANT
+                        az login --service-principal \
+                          -u $CLIENT \
+                          -p $SECRET \
+                          --tenant $TENANT
                         az account set --subscription $SUBSCRIPTION
                         az account show
                     '''
@@ -55,7 +56,7 @@ pipeline {
 
         stage('Terraform Init & Plan') {
             steps {
-                dir('test-repo1') {
+                dir('terraform') { // <-- change to folder with your .tf files
                     sh '''
                         terraform init
                         terraform plan -out=tfplan
@@ -66,8 +67,8 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                dir('test-repo1') {
-                    input message: "Apply Terraform changes?"
+                input message: "Apply Terraform changes?"
+                dir('terraform') {
                     sh 'terraform apply -auto-approve tfplan'
                 }
             }
