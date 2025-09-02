@@ -9,7 +9,7 @@ pipeline {
 
         stage('Checkout from GitHub') {
             steps {
-                sshagent(credentials: ['gitHub-ssh']) {
+                sshagent(['gitHub-ssh']) {
                     sh '''
                         rm -rf test-repo1
                         git clone git@github.com:pmathpal1/test-repo1.git
@@ -28,10 +28,7 @@ pipeline {
                 ]) {
                     sh '''
                         echo "Logging in to Azure..."
-                        az login --service-principal \
-                          -u $CLIENT \
-                          -p $SECRET \
-                          --tenant $TENANT
+                        az login --service-principal -u $CLIENT -p $SECRET --tenant $TENANT
                         az account set --subscription $SUBSCRIPTION
                         az account show
                     '''
@@ -56,11 +53,22 @@ pipeline {
 
         stage('Terraform Init & Plan') {
             steps {
-                dir('terraform') { // <-- change to folder with your .tf files
-                    sh '''
-                        terraform init
-                        terraform plan -out=tfplan
-                    '''
+                script {
+                    // Find folder containing any *.tf file
+                    def tfDir = sh(script: "find test-repo1 -type f -name '*.tf' -exec dirname {} \\; | sort -u | head -n 1", returnStdout: true).trim()
+                    if (!tfDir) {
+                        error "No Terraform configuration files found!"
+                    }
+                    echo "Terraform directory detected: ${tfDir}"
+
+                    dir(tfDir) {
+                        sh '''
+                            terraform init
+                            terraform plan -out=tfplan
+                        '''
+                    }
+                    // Save directory for apply stage
+                    env.TF_DIR = tfDir
                 }
             }
         }
@@ -68,7 +76,7 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 input message: "Apply Terraform changes?"
-                dir('terraform') {
+                dir(env.TF_DIR) {
                     sh 'terraform apply -auto-approve tfplan'
                 }
             }
@@ -76,14 +84,8 @@ pipeline {
     }
 
     post {
-        always {
-            echo "Pipeline finished."
-        }
-        success {
-            echo "Pipeline completed successfully!"
-        }
-        failure {
-            echo "Pipeline failed!"
-        }
+        always { echo "Pipeline finished." }
+        success { echo "Pipeline completed successfully!" }
+        failure { echo "Pipeline failed!" }
     }
 }
