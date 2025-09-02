@@ -17,3 +17,8 @@ variable "container_name" {
   description = "Name of the storage container"
   type        = string
 }
+
+variable "subscription_id" {
+  description = "Azure subscription ID"
+  type        = string
+}
