@@ -2,18 +2,37 @@ pipeline {
     agent any
 
     environment {
-        ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
-        ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
-        ARM_SUBSCRIPTION_ID = credentials('AZURE_SUBSCRIPTION_ID')
-        ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
+        ARM_TENANT_ID     = credentials('azure-tenant-id')
+        ARM_SUBSCRIPTION_ID = credentials('azure-subscription-id')
+        ARM_CLIENT_ID     = credentials('azure-client-id')
+        ARM_CLIENT_SECRET = credentials('azure-client-secret')
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'main',
-                    credentialsId: 'github-ssh',
-                    url: 'git@github.com:pmathpal1/test-repo1.git'
+                    url: 'git@github.com:pmathpal1/test-repo1.git',
+                    credentialsId: 'gitHub-ssh'
+            }
+        }
+
+        stage('Install Terraform') {
+            steps {
+                sh '''
+                if ! command -v terraform &> /dev/null
+                then
+                    echo "⚙️ Installing Terraform..."
+                    apt-get update && apt-get install -y wget unzip
+                    wget -q https://releases.hashicorp.com/terraform/1.9.5/terraform_1.9.5_linux_amd64.zip
+                    unzip -o terraform_1.9.5_linux_amd64.zip
+                    mv terraform /usr/local/bin/
+                else
+                    echo "✅ Terraform already installed."
+                fi
+
+                terraform -v
+                '''
             }
         }
 
@@ -23,40 +42,27 @@ pipeline {
                 echo "🔑 Using Azure credentials from Jenkins"
                 echo "👉 Running Terraform Init..."
                 terraform init
-
-                echo "👉 Running Terraform Plan..."
-                terraform plan \
-                  -var "client_id=$ARM_CLIENT_ID" \
-                  -var "client_secret=$ARM_CLIENT_SECRET" \
-                  -var "subscription_id=$ARM_SUBSCRIPTION_ID" \
-                  -var "tenant_id=$ARM_TENANT_ID"
+                terraform plan -out=tfplan
                 '''
             }
         }
 
         stage('Terraform Apply') {
-            when {
-                expression { return params.APPLY_TERRAFORM == true }
-            }
             steps {
                 sh '''
                 echo "🚀 Applying Terraform changes..."
-                terraform apply -auto-approve \
-                  -var "client_id=$ARM_CLIENT_ID" \
-                  -var "client_secret=$ARM_CLIENT_SECRET" \
-                  -var "subscription_id=$ARM_SUBSCRIPTION_ID" \
-                  -var "tenant_id=$ARM_TENANT_ID"
+                terraform apply -auto-approve tfplan
                 '''
             }
         }
     }
 
     post {
-        success {
-            echo "✅ Terraform pipeline succeeded!"
-        }
         failure {
             echo "❌ Terraform pipeline failed!"
+        }
+        success {
+            echo "✅ Terraform pipeline completed successfully!"
         }
     }
 }
