@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        // Optional: Set environment variables here if needed
+        // Optional global environment variables
+        TERRAFORM_VERSION = "1.6.10"
     }
 
     stages {
@@ -70,7 +71,7 @@ pipeline {
 
     post {
         always {
-            echo "Pipeline finished"
+            echo "Pipeline finished."
         }
         success {
             echo "Pipeline completed successfully!"
