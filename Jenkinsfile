@@ -9,13 +9,11 @@ pipeline {
 
         stage('Checkout from GitHub') {
             steps {
-                sshagent(credentials: ['gitHub-ssh']) {
-                    sh '''
-                        # Clean workspace before cloning
-                        rm -rf test-repo1
-                        git clone -b main git@github.com:pmathpal1/test-repo1.git
-                        cd test-repo1
-                    '''
+                sshagent(credentials: ['gitHub-ssh']) { // Use your Jenkins credential ID here
+                    sh 'git clone git@github.com:pmathpal1/test-repo1.git'
+                    dir('test-repo1') {
+                        sh 'git checkout main'
+                    }
                 }
             }
         }
