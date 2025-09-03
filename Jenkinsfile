@@ -59,8 +59,7 @@ pipeline {
                 dir("test-repo1/terraform/bootstrap") {
                     sh '''
                         terraform init
-                        terraform apply -auto-approve
-                          -var subscription_id=$ARM_SUBSCRIPTION_ID
+                        terraform apply -auto-approve -var subscription_id=$ARM_SUBSCRIPTION_ID
                     '''
                 }
             }
@@ -71,8 +70,7 @@ pipeline {
                 dir("test-repo1/terraform/main") {
                     sh '''
                         terraform init
-                        terraform plan -out=tfplan
-                          -var subscription_id=$ARM_SUBSCRIPTION_ID
+                        terraform plan -out=tfplan -var subscription_id=$ARM_SUBSCRIPTION_ID
                     '''
                 }
             }
