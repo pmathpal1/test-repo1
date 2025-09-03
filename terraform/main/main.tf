@@ -21,3 +21,8 @@ resource "azurerm_subnet" "subnets" {
 output "subnet_id" {
   value = azurerm_subnet.subnets.*.id
 }
+
+provider "azurerm" {
+  features {}
+  subscription_id = var.subscription_id
+}
