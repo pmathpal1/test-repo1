@@ -4,7 +4,7 @@ pipeline {
     environment {
         TERRAFORM_VERSION = "1.6.10"
 
-        // Azure Service Principal credentials pulled from Jenkins
+        // Azure Service Principal credentials from Jenkins
         ARM_CLIENT_ID       = credentials('AZURE_CLIENT_ID')
         ARM_CLIENT_SECRET   = credentials('AZURE_CLIENT_SECRET')
         ARM_TENANT_ID       = credentials('AZURE_TENANT_ID')
@@ -28,7 +28,11 @@ pipeline {
             steps {
                 sh '''
                     echo "Logging in to Azure..."
-                    az login --service-principal -u $ARM_CLIENT_ID -p $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
+                    az login --service-principal \
+                        -u $ARM_CLIENT_ID \
+                        -p $ARM_CLIENT_SECRET \
+                        --tenant $ARM_TENANT_ID
+
                     az account set --subscription $ARM_SUBSCRIPTION_ID
                     az account show
                 '''
@@ -50,44 +54,50 @@ pipeline {
             }
         }
 
-        stage('Terraform Init & Plan') {
+        stage('Terraform Bootstrap Init & Apply') {
             steps {
-                script {
-                    def tfDir = sh(script: "find test-repo1 -type f -name '*.tf' -exec dirname {} \\; | sort -u | head -n 1", returnStdout: true).trim()
-                    if (!tfDir) {
-                        error "No Terraform configuration files found!"
-                    }
-                    echo "Terraform directory detected: ${tfDir}"
+                dir("test-repo1/terraform/bootstrap") {
+                    sh '''
+                        terraform init
+                        terraform apply -auto-approve
+                    '''
+                }
+            }
+        }
 
-                    dir(tfDir) {
-                        sh '''
-                            terraform init
-                            terraform plan -out=tfplan -var "subscription_id=$ARM_SUBSCRIPTION_ID"
-                        '''
-                    }
-
-                    env.TF_DIR = tfDir
+        stage('Terraform Main Init & Plan') {
+            steps {
+                dir("test-repo1/terraform/main") {
+                    sh '''
+                        terraform init
+                        terraform plan -out=tfplan
+                    '''
                 }
             }
         }
 
         stage('Terraform Apply') {
             steps {
-                input message: "Apply Terraform changes?"
-                dir(env.TF_DIR) {
-                    sh 'terraform apply -auto-approve -var "subscription_id=$ARM_SUBSCRIPTION_ID" tfplan'
+                input message: "Apply Terraform main changes?"
+                dir("test-repo1/terraform/main") {
+                    sh '''
+                        terraform apply -auto-approve tfplan
+                    '''
                 }
             }
         }
-
+        /*
         stage('Terraform Destroy') {
             steps {
-                input message: "Destroy Terraform-managed resources?"
-                dir(env.TF_DIR) {
-                    sh 'terraform destroy -auto-approve -var "subscription_id=$ARM_SUBSCRIPTION_ID"'
+                input message: "Destroy all Terraform-managed resources?"
+                dir("test-repo1/terraform/main") {
+                    sh '''
+                        terraform destroy -auto-approve
+                    '''
                 }
             }
         }
+        */
     }
 
     post {
