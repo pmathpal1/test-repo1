@@ -58,8 +58,14 @@ pipeline {
             steps {
                 dir("test-repo1/terraform/bootstrap") {
                     sh '''
-                        terraform init
-                        terraform apply -auto-approve -var subscription_id=$ARM_SUBSCRIPTION_ID
+                        export ARM_CLIENT_ID=$ARM_CLIENT_ID
+                        export ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET
+                        export ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID
+                        export ARM_TENANT_ID=$ARM_TENANT_ID
+
+                        terraform init -reconfigure
+                        terraform apply -auto-approve \
+                          -var subscription_id=$ARM_SUBSCRIPTION_ID
                     '''
                 }
             }
@@ -69,8 +75,14 @@ pipeline {
             steps {
                 dir("test-repo1/terraform/main") {
                     sh '''
-                        terraform init
-                        terraform plan -out=tfplan -var subscription_id=$ARM_SUBSCRIPTION_ID
+                        export ARM_CLIENT_ID=$ARM_CLIENT_ID
+                        export ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET
+                        export ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID
+                        export ARM_TENANT_ID=$ARM_TENANT_ID
+
+                        terraform init -reconfigure
+                        terraform plan -out=tfplan \
+                          -var subscription_id=$ARM_SUBSCRIPTION_ID
                     '''
                 }
             }
@@ -81,17 +93,28 @@ pipeline {
                 input message: "Apply Terraform main changes?"
                 dir("test-repo1/terraform/main") {
                     sh '''
+                        export ARM_CLIENT_ID=$ARM_CLIENT_ID
+                        export ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET
+                        export ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID
+                        export ARM_TENANT_ID=$ARM_TENANT_ID
+
                         terraform apply -auto-approve tfplan
                     '''
                 }
             }
         }
+
         /*
         stage('Terraform Destroy') {
             steps {
                 input message: "Destroy all Terraform-managed resources?"
                 dir("test-repo1/terraform/main") {
                     sh '''
+                        export ARM_CLIENT_ID=$ARM_CLIENT_ID
+                        export ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET
+                        export ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID
+                        export ARM_TENANT_ID=$ARM_TENANT_ID
+
                         terraform destroy -auto-approve
                     '''
                 }
