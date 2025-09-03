@@ -60,6 +60,7 @@ pipeline {
                     sh '''
                         terraform init
                         terraform apply -auto-approve
+                          -var subscription_id=$ARM_SUBSCRIPTION_ID
                     '''
                 }
             }
@@ -71,6 +72,7 @@ pipeline {
                     sh '''
                         terraform init
                         terraform plan -out=tfplan
+                          -var subscription_id=$ARM_SUBSCRIPTION_ID
                     '''
                 }
             }
