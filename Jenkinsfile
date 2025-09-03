@@ -57,16 +57,19 @@ pipeline {
         stage('Terraform Bootstrap Init & Apply') {
             steps {
                 dir("test-repo1/terraform/bootstrap") {
-                    sh '''
-                        export ARM_CLIENT_ID=$ARM_CLIENT_ID
-                        export ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET
-                        export ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID
-                        export ARM_TENANT_ID=$ARM_TENANT_ID
-
-                        terraform init -reconfigure
-                        terraform apply -auto-approve \
-                          -var subscription_id=$ARM_SUBSCRIPTION_ID
-                    '''
+                    withEnv([
+                        "ARM_CLIENT_ID=$ARM_CLIENT_ID",
+                        "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET",
+                        "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID",
+                        "ARM_TENANT_ID=$ARM_TENANT_ID"
+                    ]) {
+                        sh '''
+                            rm -rf .terraform .terraform.lock.hcl
+                            terraform init -reconfigure
+                            terraform apply -auto-approve \
+                              -var subscription_id=$ARM_SUBSCRIPTION_ID
+                        '''
+                    }
                 }
             }
         }
@@ -74,16 +77,19 @@ pipeline {
         stage('Terraform Main Init & Plan') {
             steps {
                 dir("test-repo1/terraform/main") {
-                    sh '''
-                        export ARM_CLIENT_ID=$ARM_CLIENT_ID
-                        export ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET
-                        export ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID
-                        export ARM_TENANT_ID=$ARM_TENANT_ID
-
-                        terraform init -reconfigure
-                        terraform plan -out=tfplan \
-                          -var subscription_id=$ARM_SUBSCRIPTION_ID
-                    '''
+                    withEnv([
+                        "ARM_CLIENT_ID=$ARM_CLIENT_ID",
+                        "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET",
+                        "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID",
+                        "ARM_TENANT_ID=$ARM_TENANT_ID"
+                    ]) {
+                        sh '''
+                            rm -rf .terraform .terraform.lock.hcl
+                            terraform init -reconfigure
+                            terraform plan -out=tfplan \
+                              -var subscription_id=$ARM_SUBSCRIPTION_ID
+                        '''
+                    }
                 }
             }
         }
@@ -92,14 +98,16 @@ pipeline {
             steps {
                 input message: "Apply Terraform main changes?"
                 dir("test-repo1/terraform/main") {
-                    sh '''
-                        export ARM_CLIENT_ID=$ARM_CLIENT_ID
-                        export ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET
-                        export ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID
-                        export ARM_TENANT_ID=$ARM_TENANT_ID
-
-                        terraform apply -auto-approve tfplan
-                    '''
+                    withEnv([
+                        "ARM_CLIENT_ID=$ARM_CLIENT_ID",
+                        "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET",
+                        "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID",
+                        "ARM_TENANT_ID=$ARM_TENANT_ID"
+                    ]) {
+                        sh '''
+                            terraform apply -auto-approve tfplan
+                        '''
+                    }
                 }
             }
         }
@@ -109,14 +117,16 @@ pipeline {
             steps {
                 input message: "Destroy all Terraform-managed resources?"
                 dir("test-repo1/terraform/main") {
-                    sh '''
-                        export ARM_CLIENT_ID=$ARM_CLIENT_ID
-                        export ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET
-                        export ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID
-                        export ARM_TENANT_ID=$ARM_TENANT_ID
-
-                        terraform destroy -auto-approve
-                    '''
+                    withEnv([
+                        "ARM_CLIENT_ID=$ARM_CLIENT_ID",
+                        "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET",
+                        "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID",
+                        "ARM_TENANT_ID=$ARM_TENANT_ID"
+                    ]) {
+                        sh '''
+                            terraform destroy -auto-approve
+                        '''
+                    }
                 }
             }
         }
